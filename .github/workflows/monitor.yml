@@ -42,6 +42,14 @@ jobs:
           mv "$RUNNER_TEMP"/early/early_* "out/${{ matrix.os }}/"
           cat "out/${{ matrix.os }}/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
+      # launchd logs every spawn/exit since boot, covering the minutes before the
+      # job started and processes too short-lived for polling.
+      - name: Boot log
+        run: |
+          python3 bootlog.py --sudo --out "out/${{ matrix.os }}"
+          gzip "out/${{ matrix.os }}/launchd_spawns.ndjson"
+          cat "out/${{ matrix.os }}/bootlog.md" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
