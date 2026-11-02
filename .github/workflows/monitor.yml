@@ -1,0 +1,48 @@
+name: macOS process monitor
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration:
+        description: Seconds to monitor
+        default: "300"
+      interval:
+        description: Seconds between samples
+        default: "2"
+  push:
+    branches: [main]
+
+jobs:
+  monitor:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-26, macos-15, macos-26-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      # Record the state before checkout touches anything (git, node for actions, etc.)
+      - name: Early snapshot
+        run: |
+          mkdir -p out
+          sysctl -n kern.boottime > out/early_boottime.txt
+          date +%s > out/early_now.txt
+          ps -axww -o pid,ppid,user,lstart,etime,rss,pcpu,args > out/early_ps.txt
+          wc -l < out/early_ps.txt
+
+      - uses: actions/checkout@v4
+
+      - name: Monitor
+        run: |
+          python3 monitor.py --sudo \
+            --duration "${{ inputs.duration || '300' }}" \
+            --interval "${{ inputs.interval || '2' }}" \
+            --out "out/${{ matrix.os }}"
+          mv out/early_* "out/${{ matrix.os }}/"
+          cat "out/${{ matrix.os }}/summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.os }}
+          path: out/${{ matrix.os }}
