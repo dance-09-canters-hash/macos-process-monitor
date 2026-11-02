@@ -24,11 +24,12 @@ jobs:
       # Record the state before checkout touches anything (git, node for actions, etc.)
       - name: Early snapshot
         run: |
-          mkdir -p out
-          sysctl -n kern.boottime > out/early_boottime.txt
-          date +%s > out/early_now.txt
-          ps -axww -o pid,ppid,user,lstart,etime,rss,pcpu,args > out/early_ps.txt
-          wc -l < out/early_ps.txt
+          # Stored outside the workspace: actions/checkout wipes it.
+          mkdir -p "$RUNNER_TEMP/early"
+          sysctl -n kern.boottime > "$RUNNER_TEMP/early/early_boottime.txt"
+          date +%s > "$RUNNER_TEMP/early/early_now.txt"
+          ps -axww -o pid,ppid,user,lstart,etime,rss,pcpu,args > "$RUNNER_TEMP/early/early_ps.txt"
+          wc -l < "$RUNNER_TEMP/early/early_ps.txt"
 
       - uses: actions/checkout@v4
 
@@ -38,7 +39,7 @@ jobs:
             --duration "${{ inputs.duration || '300' }}" \
             --interval "${{ inputs.interval || '2' }}" \
             --out "out/${{ matrix.os }}"
-          mv out/early_* "out/${{ matrix.os }}/"
+          mv "$RUNNER_TEMP"/early/early_* "out/${{ matrix.os }}/"
           cat "out/${{ matrix.os }}/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4

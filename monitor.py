@@ -242,8 +242,10 @@ def summarize(out, meta, procs, timeline, host):
     table("Alive at end, by user", collections.Counter(p["user"] for p in alive_end), "user")
     table("Alive at end, by category", collections.Counter(p["category"] for p in alive_end), "category")
 
+    # Bare names (no path, or "(name)" for exited processes) can't be attributed, so skip them.
     L.append("## Non-Apple executables seen\n")
-    nonapple = collections.Counter(p["exe_norm"] for p in procs if not p["category"].startswith("apple"))
+    nonapple = collections.Counter(p["exe_norm"] for p in procs
+                                   if p["category"].split(":")[0] in ("3rdparty", "user", "other"))
     L.append("| executable | instances |\n|---|---|")
     L.extend(f"| `{k}` | {v} |" for k, v in sorted(nonapple.items()))
     L.append("")
