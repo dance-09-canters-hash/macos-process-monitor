@@ -73,7 +73,10 @@ def drive_info(path):
         raw.append("== lsblk ==\n" + sh(["lsblk", "-o", "NAME,MODEL,SIZE,ROTA,TRAN,TYPE"]))
         return {"platform": platform.platform()}, "\n".join(raw)
 
-    vol = diskutil_plist(str(path))
+    # diskutil wants a device or mount point, not an arbitrary directory.
+    df = sh(["df", "-P", str(path)]).splitlines()
+    dev = df[1].split()[0] if len(df) > 1 and df[1].startswith("/dev/") else str(path)
+    vol = diskutil_plist(dev)
     # APFS volumes live in a synthesized container; follow it to the physical store.
     stores = vol.get("APFSPhysicalStores") or []
     store = stores[0].get("APFSPhysicalStore") if stores and isinstance(stores[0], dict) else None
@@ -99,7 +102,8 @@ def drive_info(path):
         "fusion": vol.get("Fusion"),
         "hw_model": sh(["sysctl", "-n", "hw.model"]).strip(),
     }
-    raw.append(f"== diskutil info {path} ==\n" + sh(["diskutil", "info", str(path)]))
+    info["device"] = dev
+    raw.append(f"== diskutil info {dev} ({path}) ==\n" + sh(["diskutil", "info", dev]))
     if whole:
         raw.append(f"== diskutil info {whole} ==\n" + sh(["diskutil", "info", whole]))
     raw.append("== diskutil list ==\n" + sh(["diskutil", "list"]))
@@ -220,7 +224,8 @@ def summarize(out, info, results, notes, args, size):
                  f"{s['p99_us']} | {s['max_us']} | {s['iops_qd1']} |")
     L.append("")
     L.extend(f"- {n}" for n in notes)
-    if info.get("virtual") == "Virtual" or "virtual" in str(info.get("media_name", "")).lower():
+    if (info.get("virtual") == "Virtual" or "virtual" in str(info.get("media_name", "")).lower()
+            or str(info.get("hw_model", "")).startswith("VirtualMac")):
         L.append("- Virtual disk: numbers reflect the hypervisor's storage, not physical hardware.")
     L.append("")
     (out / "disk.md").write_text("\n".join(L))
