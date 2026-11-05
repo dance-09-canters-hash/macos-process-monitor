@@ -9,6 +9,11 @@ on:
       interval:
         description: Seconds between samples
         default: "2"
+      checks:
+        description: Which checks to run
+        type: choice
+        options: [all, latency]
+        default: all
   push:
     branches: [main]
 
@@ -23,6 +28,7 @@ jobs:
     steps:
       # Record the state before checkout touches anything (git, node for actions, etc.)
       - name: Early snapshot
+        if: inputs.checks != 'latency'
         run: |
           # Stored outside the workspace: actions/checkout wipes it.
           mkdir -p "$RUNNER_TEMP/early"
@@ -34,6 +40,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Monitor
+        if: inputs.checks != 'latency'
         run: |
           python3 monitor.py --sudo \
             --duration "${{ inputs.duration || '300' }}" \
@@ -45,10 +52,17 @@ jobs:
       # launchd logs every spawn/exit since boot, covering the minutes before the
       # job started and processes too short-lived for polling.
       - name: Boot log
+        if: inputs.checks != 'latency'
         run: |
           python3 bootlog.py --sudo --out "out/${{ matrix.os }}"
           gzip "out/${{ matrix.os }}/launchd_spawns.ndjson"
           cat "out/${{ matrix.os }}/bootlog.md" >> "$GITHUB_STEP_SUMMARY"
+
+      # Small random I/O latency plus which drive it is (hardware varies by config).
+      - name: Disk latency
+        run: |
+          python3 disklat.py --sudo --path "$RUNNER_TEMP" --out "out/${{ matrix.os }}"
+          cat "out/${{ matrix.os }}/disk.md" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/upload-artifact@v4
         if: always()
