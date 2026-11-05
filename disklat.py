@@ -224,8 +224,10 @@ def summarize(out, info, results, notes, args, size):
                  f"{s['p99_us']} | {s['max_us']} | {s['iops_qd1']} |")
     L.append("")
     L.extend(f"- {n}" for n in notes)
-    if (info.get("virtual") == "Virtual" or "virtual" in str(info.get("media_name", "")).lower()
-            or str(info.get("hw_model", "")).startswith("VirtualMac")):
+    # Some hypervisors (e.g. Anka on Intel runners) report a real Mac model and "Physical".
+    media = str(info.get("media_name", "")).lower()
+    if (info.get("virtual") == "Virtual" or str(info.get("hw_model", "")).startswith("VirtualMac")
+            or any(k in media for k in ("virtual", "virtio", "anka", "veertu", "vmware", "parallels"))):
         L.append("- Virtual disk: numbers reflect the hypervisor's storage, not physical hardware.")
     L.append("")
     (out / "disk.md").write_text("\n".join(L))
