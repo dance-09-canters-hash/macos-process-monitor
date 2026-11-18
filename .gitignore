@@ -1,3 +1,5 @@
 run*/
 runner-results/
 comparison.md
+kb.db
+__pycache__/

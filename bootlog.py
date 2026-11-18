@@ -16,6 +16,7 @@ Writes <out>/bootlog.md.
 import argparse
 import collections
 import datetime as dt
+import gzip
 import json
 import re
 import subprocess
@@ -43,7 +44,8 @@ def boot_time(out):
 
 def parse(path):
     """Yield (epoch, service, pid, kind, detail) for spawn/exit events."""
-    for line in open(path):
+    f = gzip.open(path, "rt") if str(path).endswith(".gz") else open(path)
+    for line in f:
         try:
             e = json.loads(line)
         except json.JSONDecodeError:
@@ -63,6 +65,12 @@ def parse(path):
             yield t, service, pid, "exit", int(ran.group(1)) if ran else None
 
 
+def service_label(svc):
+    """Group per-instance services: pid/<n>/<label>.<UUID> are XPC services owned by an app."""
+    svc = re.sub(r"^pid/\d+/", "pid/*/", svc)
+    return re.sub(r"[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", "*", svc)
+
+
 def summarize(out, boot, events):
     spawns = [e for e in events if e[3] == "spawn"]
     if not spawns:
@@ -74,10 +82,7 @@ def summarize(out, boot, events):
     def domain(svc):
         return svc.split("/", 1)[0]
 
-    def label(svc):
-        # pid/<n>/<label>.<UUID> are per-instance XPC services owned by an app; group them.
-        svc = re.sub(r"^pid/\d+/", "pid/*/", svc)
-        return re.sub(r"[0-9A-Fa-f]{8}(-[0-9A-Fa-f]{4}){3}-[0-9A-Fa-f]{12}", "*", svc)
+    label = service_label
 
     L = ["# launchd spawns since boot\n"]
     L.append(f"- Boot time: {dt.datetime.fromtimestamp(boot).isoformat()}")
